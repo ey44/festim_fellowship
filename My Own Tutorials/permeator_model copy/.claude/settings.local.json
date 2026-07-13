@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python pipe_resistance_plot.py)",
+      "Bash(python -c ' *)"
+    ]
+  }
+}

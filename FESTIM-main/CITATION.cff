@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+title: FESTIM
+message: 'If you use this software, please cite it as below.'
+type: software
+authors:
+  - name: The FESTIM contributors
+
+repository-code: 'https://github.com/festim-dev/FESTIM'
+preferred-citation:
+  authors:
+    - given-names: Rémi
+      family-names: Delaporte-Mathurin
+    - given-names: James
+      family-names: Dark
+    - given-names: Gabriele
+      family-names: Ferrero
+    - given-names: Etienne
+      family-names: Hodille
+    - given-names: Vladimir
+      family-names: Kulagin
+    - given-names: Samuele
+      family-names: Meschini
+  title: "FESTIM: An open-source code for hydrogen transport simulations"
+  type: article
+  year: 2024
+  doi: 10.1016/j.ijhydene.2024.03.184
+  url: "https://doi.org/10.1016/j.ijhydene.2024.03.184"
+  issn: 0360-3199
+  volume: 63
+  pages: 786-802
+  journal: "International Journal of Hydrogen Energy"
