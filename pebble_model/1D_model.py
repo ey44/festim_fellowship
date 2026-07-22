@@ -1,4 +1,4 @@
-'''
+"""
 Initial model to work with the system in 1D.
 
 The first will be a coated pebble with a coating of 0.1 mm and a pebble radius of 0.5 mm.
@@ -10,8 +10,7 @@ The model is a fixed temperature, with a tritium source term in the bulk, and a 
 No traps added yet.
 Need to consider porosity too.
 
-'''
-
+"""
 
 import os
 
@@ -29,10 +28,10 @@ coating_thickness = 1e-4
 pebble_radius = 5e-4
 local_refinement_thickness = 5e-7
 surface_location = pebble_radius + coating_thickness
-model_temperature = 573.0 # blanket inlet temperature
-p_total = 2e5 # purge gas pressure [Pa]
-x_D2_ppm = 100 
-x_D2 = x_D2_ppm * 1e-6 # convert to fraction
+model_temperature = 573.0  # blanket inlet temperature
+p_total = 2e5  # purge gas pressure [Pa]
+x_D2_ppm = 100
+x_D2 = x_D2_ppm * 1e-6  # convert to fraction
 p_D2 = x_D2 * p_total
 p_DT = 0.0
 p_T2 = 0.0
@@ -41,24 +40,30 @@ surface_recombination = True
 # Select materials
 
 
-
-l2O_festim = F.Material(D_0=Li2O.D_0, E_D=Li2O.E_D,
-                 K_S_0=1e-3 * 6.022e23, E_K_S=Zr.E_K_S, # placeholder values for solubility, as the Li2O solubility is not well known
-                 solubility_law="sievert")
-Zr_festim = F.Material(D_0=Zr.D_0, E_D=Zr.E_D,
-                     K_S_0=Zr.K_S_0, E_K_S=Zr.E_K_S,
-                     solubility_law="sievert")
+l2O_festim = F.Material(
+    D_0=Li2O.D_0,
+    E_D=Li2O.E_D,
+    K_S_0=1e-3 * 6.022e23,
+    E_K_S=Zr.E_K_S,  # placeholder values for solubility, as the Li2O solubility is not well known
+    solubility_law="sievert",
+)
+Zr_festim = F.Material(
+    D_0=Zr.D_0, E_D=Zr.E_D, K_S_0=Zr.K_S_0, E_K_S=Zr.E_K_S, solubility_law="sievert"
+)
 
 
 # print the solubility, and diffusivity values at the simulation temperature
 for name, mat in [("Li2O (ceramic)", l2O_festim), ("Zr (coating)", Zr_festim)]:
     D = mat.D_0 * np.exp(-mat.E_D / (F.k_B * model_temperature))
     K_S = mat.K_S_0 * np.exp(-mat.E_K_S / (F.k_B * model_temperature))
-    print(f"{name}: D_0 = {mat.D_0:.3e} m^2/s, E_D = {mat.E_D:.3e} eV, "
-          f"K_S_0 = {mat.K_S_0:.3e} atoms/m^3/Pa^0.5, E_K_S = {mat.E_K_S:.3e} eV")
-    print(f"{name}: D({model_temperature:.1f} K) = {D:.3e} m^2/s, "
-          f"K_S({model_temperature:.1f} K) = {K_S:.3e} atoms/m^3/Pa^0.5")
-
+    print(
+        f"{name}: D_0 = {mat.D_0:.3e} m^2/s, E_D = {mat.E_D:.3e} eV, "
+        f"K_S_0 = {mat.K_S_0:.3e} atoms/m^3/Pa^0.5, E_K_S = {mat.E_K_S:.3e} eV"
+    )
+    print(
+        f"{name}: D({model_temperature:.1f} K) = {D:.3e} m^2/s, "
+        f"K_S({model_temperature:.1f} K) = {K_S:.3e} atoms/m^3/Pa^0.5"
+    )
 
 # Define mesh
 vertices = np.unique(
@@ -66,7 +71,7 @@ vertices = np.unique(
         [
             np.linspace(
                 0.0,
-                pebble_radius ,
+                pebble_radius,
                 num=150,
             ),
             np.linspace(
@@ -74,7 +79,6 @@ vertices = np.unique(
                 surface_location,
                 num=100,
             ),
-
         ]
     )
 )
@@ -127,8 +131,8 @@ my_model.species = [T, D]
 core_coating_interface = F.Interface(
     id=4,
     subdomains=[ceramic_subdomain, coating_subdomain],
-    penalty_term=1e20,
-    method="penalty",
+    penalty_term=1e25,
+    method="nitsche",
 )
 
 my_model.interfaces = [core_coating_interface]
@@ -142,9 +146,8 @@ my_model.interfaces = [core_coating_interface]
 # Atomic concentration convention: c in atoms/m3, flux in atoms/m2/s
 
 if surface_recombination:
-
-    k_r0_common = 1e-22   # 
-    E_kr_common = 0.0     # eV
+    k_r0_common = 1e-22  #
+    E_kr_common = 0.0  # eV
     k_d0_common = 1e-22  # pre-exponential dissociation coefficient (m^-2/s/Pa)
     E_kd_common = E_kr_common  # dissociation activation energy (eV)
 
@@ -209,13 +212,13 @@ else:
 
 # Define temperature
 
-my_model.temperature = model_temperature # inlet blanket conditions
+my_model.temperature = model_temperature  # inlet blanket conditions
 
 # Defint source
 # volumetric tritium generation rate S [particles/m3/s]
-P_fus = 1140 # MW
+P_fus = 1140  # MW
 TBR = 1.2
-blanket_volume = 1500 # m3
+blanket_volume = 1500  # m3
 true_pebbles_volume_fraction = 0.5
 pebbles_volume = blanket_volume * true_pebbles_volume_fraction
 tritium_production_rate = P_fus * TBR * 6.2415 * 10**24 / 17.6e6  # tritium atoms/s
@@ -239,28 +242,35 @@ T_profile_coating = F.Profile1DExport(field=T, subdomain=coating_subdomain)
 D_profile_coating = F.Profile1DExport(field=D, subdomain=coating_subdomain)
 
 
-ceramic_vtx = F.VTXSpeciesExport(filename=os.path.join(script_dir, "ceramic.bp"), field=[T, D], subdomain=ceramic_subdomain)
-coating_vtx = F.VTXSpeciesExport(filename=os.path.join(script_dir, "coating.bp"), field=[T, D], subdomain=coating_subdomain)
+ceramic_vtx = F.VTXSpeciesExport(
+    filename=os.path.join(script_dir, "ceramic.bp"),
+    field=[T, D],
+    subdomain=ceramic_subdomain,
+)
+coating_vtx = F.VTXSpeciesExport(
+    filename=os.path.join(script_dir, "coating.bp"),
+    field=[T, D],
+    subdomain=coating_subdomain,
+)
 
-my_model.exports = [T_profile_ceramic,
-                    D_profile_ceramic,
-                    T_profile_coating,
-                    D_profile_coating,
-                    ceramic_vtx,
-                    coating_vtx,
+my_model.exports = [
+    T_profile_ceramic,
+    D_profile_ceramic,
+    T_profile_coating,
+    D_profile_coating,
+    ceramic_vtx,
+    coating_vtx,
 ]
 
 surface_flux = F.SurfaceFlux(field=T, surface=surface)
 my_model.exports.append(surface_flux)
 
 
-
-
 # Define model settings
 my_model.settings = F.Settings(
     atol=1e10,
     rtol=1e-8,
-    max_iterations=500,
+    max_iterations=30,
     transient=True,
     final_time=1e5,
     stepsize=F.Stepsize(
@@ -271,6 +281,11 @@ my_model.settings = F.Settings(
         max_stepsize=1e3,
     ),
 )
+
+from dolfinx.log import set_log_level, LogLevel
+
+set_log_level(LogLevel.INFO)
+
 my_model.initialise()
 my_model.run()
 
@@ -292,8 +307,8 @@ fig, ax = make_fig(
     title=f"T concentration profile (t = {t[-1]:.3g} s)",
     log_y=True,
 )
-ax.plot(T_profile_ceramic.x, T_profile_ceramic.data[-1], color=COLORS['red'])
-ax.plot(T_profile_coating.x, T_profile_coating.data[-1], color=COLORS['red'])
+ax.plot(T_profile_ceramic.x, T_profile_ceramic.data[-1], color=COLORS["red"])
+ax.plot(T_profile_coating.x, T_profile_coating.data[-1], color=COLORS["red"])
 save_fig(fig, "T_concentration.png")
 
 fig, ax = make_fig(
@@ -302,8 +317,8 @@ fig, ax = make_fig(
     title=f"D concentration profile (t = {t[-1]:.3g} s)",
     log_y=True,
 )
-ax.plot(D_profile_ceramic.x, D_profile_ceramic.data[-1], color=COLORS['blue'])
-ax.plot(D_profile_coating.x, D_profile_coating.data[-1], color=COLORS['blue'])
+ax.plot(D_profile_ceramic.x, D_profile_ceramic.data[-1], color=COLORS["blue"])
+ax.plot(D_profile_coating.x, D_profile_coating.data[-1], color=COLORS["blue"])
 save_fig(fig, "D_concentration.png")
 
 # Zoom in on the ceramic/coating interface (+/-2% of the total radial extent)
@@ -316,8 +331,8 @@ fig, ax = make_fig(
     title=f"T concentration near interface (t = {t[-1]:.3g} s)",
     log_y=True,
 )
-ax.plot(T_profile_ceramic.x, T_profile_ceramic.data[-1], color=COLORS['red'])
-ax.plot(T_profile_coating.x, T_profile_coating.data[-1], color=COLORS['red'])
+ax.plot(T_profile_ceramic.x, T_profile_ceramic.data[-1], color=COLORS["red"])
+ax.plot(T_profile_coating.x, T_profile_coating.data[-1], color=COLORS["red"])
 ax.set_xlim(pebble_radius - interface_half_width, pebble_radius + interface_half_width)
 save_fig(fig, "T_interface_concentration.png")
 
@@ -327,8 +342,8 @@ fig, ax = make_fig(
     title=f"D concentration near interface (t = {t[-1]:.3g} s)",
     log_y=True,
 )
-ax.plot(D_profile_ceramic.x, D_profile_ceramic.data[-1], color=COLORS['blue'])
-ax.plot(D_profile_coating.x, D_profile_coating.data[-1], color=COLORS['blue'])
+ax.plot(D_profile_ceramic.x, D_profile_ceramic.data[-1], color=COLORS["blue"])
+ax.plot(D_profile_coating.x, D_profile_coating.data[-1], color=COLORS["blue"])
 ax.set_xlim(pebble_radius - interface_half_width, pebble_radius + interface_half_width)
 save_fig(fig, "D_interface_concentration.png")
 
@@ -346,7 +361,9 @@ for profile, name in [(T_profile_ceramic, "ceramic"), (T_profile_coating, "coati
 # Plot several snapshots in time (log y-axis) to watch the concentration accumulate,
 # starting from t_min onwards so the plot focuses on the slower long-term buildup
 # rather than the fast initial transient.
-def plot_accumulation(profile_inner, profile_outer, species_name, filename, n_snapshots=10, t_min=1000.0):
+def plot_accumulation(
+    profile_inner, profile_outer, species_name, filename, n_snapshots=10, t_min=1000.0
+):
     t = np.asarray(profile_inner.t)
     start = np.searchsorted(t, t_min)
     n = len(t) - start
@@ -384,5 +401,5 @@ fig, ax = make_fig(
     log_x=True,
     log_y=True,
 )
-ax.plot(surface_flux.t, surface_flux.data, color=COLORS['red'])
+ax.plot(surface_flux.t, surface_flux.data, color=COLORS["red"])
 save_fig(fig, "T_surface_flux.png")
