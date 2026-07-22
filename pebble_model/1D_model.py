@@ -42,12 +42,22 @@ surface_recombination = True
 
 
 
-l2O = F.Material(D_0=Li2O.D_0, E_D=Li2O.E_D,
-                 K_S_0=1e-3, E_K_S=0.0, # placeholder values for solubility, as the Li2O solubility is not well known
+l2O_festim = F.Material(D_0=Li2O.D_0, E_D=Li2O.E_D,
+                 K_S_0=1e-3 * 6.022e23, E_K_S=Zr.E_K_S, # placeholder values for solubility, as the Li2O solubility is not well known
                  solubility_law="sievert")
-Zr = F.Material(D_0=Zr.D_0, E_D=Zr.E_D,
+Zr_festim = F.Material(D_0=Zr.D_0, E_D=Zr.E_D,
                      K_S_0=Zr.K_S_0, E_K_S=Zr.E_K_S,
                      solubility_law="sievert")
+
+
+# print the solubility, and diffusivity values at the simulation temperature
+for name, mat in [("Li2O (ceramic)", l2O_festim), ("Zr (coating)", Zr_festim)]:
+    D = mat.D_0 * np.exp(-mat.E_D / (F.k_B * model_temperature))
+    K_S = mat.K_S_0 * np.exp(-mat.E_K_S / (F.k_B * model_temperature))
+    print(f"{name}: D_0 = {mat.D_0:.3e} m^2/s, E_D = {mat.E_D:.3e} eV, "
+          f"K_S_0 = {mat.K_S_0:.3e} atoms/m^3/Pa^0.5, E_K_S = {mat.E_K_S:.3e} eV")
+    print(f"{name}: D({model_temperature:.1f} K) = {D:.3e} m^2/s, "
+          f"K_S({model_temperature:.1f} K) = {K_S:.3e} atoms/m^3/Pa^0.5")
 
 
 # Define mesh
@@ -56,20 +66,15 @@ vertices = np.unique(
         [
             np.linspace(
                 0.0,
-                pebble_radius - local_refinement_thickness,
-                num=1500,
+                pebble_radius ,
+                num=150,
             ),
             np.linspace(
-                pebble_radius - local_refinement_thickness,
-                pebble_radius + local_refinement_thickness,
-                num=410,
-            ),
-            np.linspace(
-                pebble_radius + local_refinement_thickness,
+                pebble_radius,
                 surface_location,
-                num=1000,
+                num=100,
             ),
-            [pebble_radius],
+
         ]
     )
 )
@@ -85,13 +90,13 @@ my_model.mesh = mesh
 ceramic_subdomain = F.VolumeSubdomain1D(
     id=1,
     borders=[0.0, pebble_radius],
-    material=l2O,
+    material=l2O_festim,
 )
 
 coating_subdomain = F.VolumeSubdomain1D(
     id=2,
     borders=[pebble_radius, surface_location],
-    material=Zr,
+    material=Zr_festim,
 )
 
 surface = F.SurfaceSubdomain1D(
@@ -183,16 +188,16 @@ if surface_recombination:
 else:
     D_sieverts_bc = F.SievertsBC(
         subdomain=surface,
-        S_0=Zr.K_S_0,
-        E_S=Zr.E_K_S,
+        S_0=Zr_festim.K_S_0,
+        E_S=Zr_festim.E_K_S,
         pressure=p_D2,
         species=D,
     )
 
     T_sieverts_bc = F.SievertsBC(
         subdomain=surface,
-        S_0=Zr.K_S_0,
-        E_S=Zr.E_K_S,
+        S_0=Zr_festim.K_S_0,
+        E_S=Zr_festim.E_K_S,
         pressure=p_T2,
         species=T,
     )
@@ -255,7 +260,7 @@ my_model.exports.append(surface_flux)
 my_model.settings = F.Settings(
     atol=1e10,
     rtol=1e-8,
-    max_iterations=50,
+    max_iterations=500,
     transient=True,
     final_time=1e5,
     stepsize=F.Stepsize(

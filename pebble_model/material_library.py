@@ -59,15 +59,26 @@ FESTIM's Material (festim/material.py) uses:
     D   = D_0   * exp(-E_D   / (k_B * T))    D_0   [m^2/s], E_D   [eV]
     K_S = K_S_0 * exp(-E_K_S / (k_B * T))    K_S_0 [atoms/m^3/Pa^0.5], E_K_S [eV]
 
-so three conversions are applied, all via named constants below:
+CONCENTRATION BASIS OF THIS LIBRARY: atoms/m^3.
+FESTIM is only a solver -- it does not enforce units; concentrations come
+out in whatever basis K_S_0 implies. We put K_S_0 (and therefore c) on an
+atoms/m^3 basis, so source terms and Sieverts BCs elsewhere in the model
+must also be expressed per ATOM.
 
-  1. ENERGY       kJ/mol -> eV          * KJ_PER_MOL_TO_EV  (= 1/96.485)
+Three conversions are applied, all via named constants below:
+
+  1. ENERGY       kJ/mol -> eV          * KJ_PER_MOL_TO_EV  (= 1/96.485).
+                  MANDATORY: FESTIM hardcodes k_B = 8.617e-5 eV/K and puts E
+                  straight into exp(-E/(k_B*T)); kJ/mol would be wrong ~96485x.
   2. SOLUBILITY   mol(Q2)/m^3/Pa^0.5 -> atoms/m^3/Pa^0.5
-                                        * MOL_H2_TO_ATOMS   (= 2*N_A)
-     factor 2 because one mole of Q2 dissolves as two Q ATOMS, and FESTIM
-     concentrations are atoms/m^3
-  3. ISOTOPE      D_0 -> D_0 / sqrt(A_Q), because FESTIM has no isotope
-                                        concept of its own
+                                        * MOL_H2_TO_ATOMS   (= 2*N_A).
+                  Factor 2 because one mole of Q2 dissolves as two Q ATOMS.
+                  (For multi-material interface conditions only the RATIO of
+                  K_S between materials matters, so this uniform factor
+                  cancels there -- it affects absolute concentrations and
+                  pressure-tied Sieverts BCs only.)
+  3. ISOTOPE      D_0 -> D_0 / sqrt(A_Q) (diffusivity only; FESTIM has no
+                  isotope concept). K_S is isotope independent, so untouched.
 
 `selftest_conversions()` (and running this file directly) verifies 1-3
 numerically by evaluating both forms and comparing.
@@ -100,9 +111,8 @@ K_B_EV = 8.617333262e-5     # eV/K       Boltzmann, FESTIM's Arrhenius form
 
 # ── EXPLICIT UNIT CONVERSIONS (paper -> FESTIM) ───────────────────────────────
 # These two constants are the entire paper->FESTIM unit bridge.
-
 KJ_PER_MOL_TO_EV = 1.0 / 96.48533212  # [eV] per [kJ/mol] = 1000 / (N_A * e)
-MOL_H2_TO_ATOMS = 2.0 * N_A           # [atoms] per [mol of Q2] = 1.20443e24
+MOL_H2_TO_ATOMS = 2.0 * N_A           # [atoms] per [mol of H2] = 1.20443e24
 
 # Isotope mass numbers for the 1/sqrt(m_Q) scaling (paper, Table 1 note a)
 ISOTOPE_MASS_NUMBER = {"H": 1.0, "D": 2.0, "T": 3.0}
@@ -174,7 +184,11 @@ class MaterialProperties:
 
     @property
     def K_S_0(self) -> float:
-        """Pre-exponential solubility [atoms/m^3/Pa^0.5]. FESTIM K_S_0."""
+        """Pre-exponential solubility [atoms/m^3/Pa^0.5]. FESTIM K_S_0.
+
+        Paper's mol(H2) basis converted to atoms via MOL_H2_TO_ATOMS (2*N_A),
+        so concentrations in the resulting FESTIM model are in atoms/m^3.
+        """
         self._require_solubility()
         return self.KS0 * MOL_H2_TO_ATOMS
 
@@ -561,7 +575,7 @@ def selftest_conversions(T: float = 573.0) -> None:
 if __name__ == "__main__":
     print("material_library self-test -- Shimada (2020) Tables 1 & 2")
     print(f"KJ_PER_MOL_TO_EV = {KJ_PER_MOL_TO_EV:.6e} eV per kJ/mol")
-    print(f"MOL_H2_TO_ATOMS  = {MOL_H2_TO_ATOMS:.6e} atoms per mol(Q2)")
+    print(f"MOL_H2_TO_ATOMS  = {MOL_H2_TO_ATOMS:.6e} atoms per mol(H2)")
     print(f"default isotope  = {DEFAULT_ISOTOPE}")
 
     for m in MATERIALS.values():
