@@ -18,6 +18,7 @@ import basix
 from dolfinx import fem
 import math as m
 import pyvista
+import ufl
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 import festim as F
@@ -27,17 +28,16 @@ import festim as F
 
 Lx = 0.2  # m
 Ly = 0.2  # m
-nx = 100
-ny = 100
+nx = 8
+ny = 8
 
 porosity = 0.4
-pebble_space = 1 - porosity
 
 model_temperature = 573  # K
 
 # Gas properties
 D_He = 1e-4
-tau_geom = 1.5  # toruosity
+tau_geom = 1.5  # tortuosity
 
 D_eff = D_He * porosity / tau_geom
 
@@ -65,7 +65,7 @@ dolfinx_mesh = dolfinx.mesh.create_rectangle(
     MPI.COMM_WORLD,
     points=[np.array([0.0, 0.0]), np.array([Lx, Ly])],
     n=[nx, ny],
-    cell_type=dolfinx.mesh.CellType.triangle,
+    cell_type=dolfinx.mesh.CellType.quadrilateral,
 )
 
 print("\nMesh Created")
@@ -103,7 +103,7 @@ T_solid = F.Species(
 my_model.species = [T_gas, T_solid]
 
 """
-You coudl create a velocity field here:
+You could create a velocity field here:
 from basix.ufl import element
 
 el = element("Lagrange", mesh_fenics.topology.cell_name(), 2, shape=(mesh_fenics.geometry.dim, ))
@@ -171,27 +171,38 @@ my_model.boundary_conditions = [inlet_bc]
 
 # Defint source
 # volumetric tritium generation rate S [particles/m3/s]
-P_fus = 1140  # MW
+P_fus = 1140e6  # MW
 TBR = 1.2
 space_volume = Lx * Ly * Lx  # m3
-pebble_radius = 1e-3
+pebble_radius = 1e-3  # m
 
 
 pebbles_volume = space_volume * (1 - porosity)
-tritium_production_rate = P_fus * TBR * 6.2415 * 10**24 / 17.6e6  # tritium atoms/s
+
+energy_per_fusion_eV = 17.6e6  # eV
+energy_per_fusion_J = energy_per_fusion_eV * 1.60218e-19  # J
+neutron_rate = P_fus / energy_per_fusion_J  # neutrons/s
+
+tritium_production_rate = TBR * neutron_rate  # tritium atoms/s
 
 volume_per_pebble = (4 / 3) * np.pi * pebble_radius**3
 number_of_pebbles = pebbles_volume / volume_per_pebble
+print(f"Number of pebbles: {number_of_pebbles:.2e}")
 
+
+# TODO: check the volume so that not all the T is produced in this small region
 # volume_per_pebble cancels out here: S is a density (atoms/m3/s) applied uniformly
 # across the ceramic subdomain, so it's just total production over total breeder volume,
 # independent of how many pebbles that volume is divided into.
 S = tritium_production_rate / pebbles_volume
+print(f"Source term: {S:.2e} atoms/m3/s")
 
 
-def pebble_source(x):
+def pebble_source(x, t):
     """Spatially varying source term (UFL, symbolic x)."""
-    return S + 0.0 * x[0]  # constant 1 everywhere
+    return (S + 0.0 * x[0]) * ufl.conditional(
+        ufl.lt(t, 0.6), 1.0, 0.0
+    )  # constant 1 everywhere
     # spatial examples:
     # return S0 * ufl.exp(-x[0] / L_x)             # decays along the flow
     # return ufl.conditional(x[0] < 0.1, S0, 0.0)  # source only near inlet
@@ -203,13 +214,15 @@ my_model.sources = [
 
 my_model.temperature = model_temperature  # uniform for now
 
-
+# T_solid -> T_gas reaction
+# R = k * c_solid
+# k = k_0 * exp(-E_k / (k_b * T))
 my_reaction = F.Reaction(
     reactant=[T_solid],
     product=[T_gas],
-    k_0=1e-12,
+    k_0=1e3,
     E_k=0.0,
-    p_0=0.0,
+    p_0=1e3,
     E_p=0.0,
     volume=bed_subdomain,
 )
@@ -238,7 +251,16 @@ my_model.settings = F.Settings(
     max_iterations=30,
     transient=True,
     final_time=final_time,
-    stepsize=F.Stepsize(initial_value=0.01, growth_factor=1.1, target_nb_iterations=5),
+    stepsize=F.Stepsize(
+        initial_value=1e-3,
+        growth_factor=1.1,
+        cutback_factor=0.5,
+        target_nb_iterations=5,
+        milestones=[
+            0.6,
+            0.65,
+        ],  # we set milestones to make sure we catch the source turning off
+    ),
 )
 
 my_model.initialise()
