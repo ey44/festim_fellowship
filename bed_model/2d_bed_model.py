@@ -37,7 +37,7 @@ model_temperature = 573  # K
 
 # Gas properties
 D_He = 1e-4
-tau_geom = 1.5  # toruosity
+tau_geom = 1.5  # tortuosity
 
 D_eff = D_He * porosity / tau_geom
 
@@ -103,7 +103,7 @@ T_solid = F.Species(
 my_model.species = [T_gas, T_solid]
 
 """
-You coudl create a velocity field here:
+You could create a velocity field here:
 from basix.ufl import element
 
 el = element("Lagrange", mesh_fenics.topology.cell_name(), 2, shape=(mesh_fenics.geometry.dim, ))
@@ -174,11 +174,18 @@ my_model.boundary_conditions = [inlet_bc]
 P_fus = 1140  # MW
 TBR = 1.2
 space_volume = Lx * Ly * Lx  # m3
-pebble_radius = 1e-3
+pebble_radius = 1e-3  # m
 
 
 pebbles_volume = space_volume * (1 - porosity)
-tritium_production_rate = P_fus * TBR * 6.2415 * 10**24 / 17.6e6  # tritium atoms/s
+
+energy_per_fusion_eV = 17.6e6  # eV
+energy_per_fusion_J = energy_per_fusion_eV * 1.60218e-19  # J
+neutron_rate = P_fus / energy_per_fusion_J  # neutrons/s
+
+tritium_production_rate = TBR * neutron_rate  # tritium atoms/s
+
+breakpoint()
 
 volume_per_pebble = (4 / 3) * np.pi * pebble_radius**3
 number_of_pebbles = pebbles_volume / volume_per_pebble
