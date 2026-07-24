@@ -23,8 +23,6 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 
 my_model = F.HydrogenTransportProblemDiscontinuous()
 
-print('hi')
-
 # Define model inputs
 coating_thickness = 1e-4
 pebble_radius = 5e-4
@@ -32,25 +30,29 @@ local_refinement_thickness = 5e-7
 surface_location = pebble_radius + coating_thickness
 model_temperature = 573.0  # blanket inlet temperature
 p_total = 2e5  # purge gas pressure [Pa]
-x_D2_ppm = 1e-13
+x_D2_ppm = 1e28
 x_D2 = x_D2_ppm * 1e-6  # convert to fraction
 p_D2 = x_D2 * p_total
-p_DT = 1e-16
-p_T2 = 1e-16
-surface_recombination = 'no_zero'
+p_DT = 0
+p_T2 = 0
+surface_recombination = "no_zero"
 
 # Select materials
 
 
 l2O_festim = F.Material(
-    D_0=Li2O.D_0,
-    E_D=Li2O.E_D,
+    D_0=1.16e-5,
+    E_D=1.0468,
     K_S_0=1e-3 * 6.022e23,
-    E_K_S=Zr.E_K_S,  # placeholder values for solubility, as the Li2O solubility is not well known
+    E_K_S=0.5130,  # placeholder values for solubility, as the Li2O solubility is not well known
     solubility_law="sievert",
 )
 Zr_festim = F.Material(
-    D_0=Zr.D_0, E_D=Zr.E_D, K_S_0=Zr.K_S_0, E_K_S=Zr.E_K_S, solubility_law="sievert"
+    D_0=8.00e-7,
+    E_D=0.4695,
+    K_S_0=4.30e-1 * 6.022e23,
+    E_K_S=0.5130,
+    solubility_law="sievert",
 )
 
 
@@ -147,10 +149,10 @@ my_model.interfaces = [core_coating_interface]
 # TODO: replace with real recombination data for T/D on Zr.
 # Atomic concentration convention: c in atoms/m3, flux in atoms/m2/s
 
-if surface_recombination == 'yes':
-    k_r0_common = 1e-18  #
+if surface_recombination == "yes":
+    k_r0_common = 1e-24
     E_kr_common = 0.0  # eV
-    k_d0_common = 1e-18  # pre-exponential dissociation coefficient (m^-2/s/Pa)
+    k_d0_common = 1e-24  # pre-exponential dissociation coefficient (m^-2/s/Pa)
     E_kd_common = E_kr_common  # dissociation activation energy (eV)
 
     k_r0_D2 = k_r0_DT = k_r0_T2 = k_r0_common
@@ -163,34 +165,39 @@ if surface_recombination == 'yes':
         gas_pressure=p_D2,
         k_r0=k_r0_D2,
         E_kr=E_kr_D2,
-        k_d0=k_d0_D2,
+        k_d0=k_d0_D2 * 1e5,
         E_kd=E_kd_D2,
         subdomain=surface,
     )
 
     DT_bc = F.SurfaceReactionBC(
         reactant=[D, T],
-        gas_pressure=p_DT,
+        gas_pressure=0,
         k_r0=k_r0_DT,
         E_kr=E_kr_DT,
-        k_d0=k_d0_DT,
-        E_kd=E_kd_DT,
+        k_d0=0,
+        E_kd=0,
+        # k_d0=k_d0_DT,
+        # E_kd=E_kd_DT,
         subdomain=surface,
     )
 
     T2_bc = F.SurfaceReactionBC(
         reactant=[T, T],
-        gas_pressure=p_T2,
+        gas_pressure=0,
         k_r0=k_r0_T2,
         E_kr=E_kr_T2,
-        k_d0=k_d0_T2,
-        E_kd=E_kd_T2,
+        k_d0=0,
+        E_kd=0,
+        # k_d0=k_d0_T2,
+        # E_kd=E_kd_T2,
         subdomain=surface,
     )
 
     my_model.boundary_conditions = [D2_bc, DT_bc, T2_bc]
+    # my_model.boundary_conditions = [DT_bc, T2_bc]
 
-elif surface_recombination == 'no_sieverts':
+elif surface_recombination == "no_sieverts":
     D_sieverts_bc = F.SievertsBC(
         subdomain=surface,
         S_0=Zr_festim.K_S_0,
@@ -212,21 +219,10 @@ elif surface_recombination == 'no_sieverts':
         T_sieverts_bc,
     ]
 
-elif surface_recombination== 'no_zero':
-    T_dirichlet = F.FixedConcentrationBC(
-    subdomain=surface,
-    value=0.0,
-    species=T
-    )
-    D_dirichlet = F.FixedConcentrationBC(
-    subdomain=surface,
-    value=0.0,
-    species=D
-    )
-    my_model.boundary_conditions = [
-    T_dirichlet,
-    D_dirichlet
-    ]
+elif surface_recombination == "no_zero":
+    T_dirichlet = F.FixedConcentrationBC(subdomain=surface, value=0.0, species=T)
+    D_dirichlet = F.FixedConcentrationBC(subdomain=surface, value=0.0, species=D)
+    my_model.boundary_conditions = [T_dirichlet, D_dirichlet]
 # Define temperature
 
 my_model.temperature = model_temperature  # inlet blanket conditions
@@ -289,19 +285,18 @@ my_model.settings = F.Settings(
     rtol=1e-8,
     max_iterations=30,
     transient=True,
-    final_time=1e7,
+    final_time=1e3,
     stepsize=F.Stepsize(
-        initial_value=1e0,
-        growth_factor=1.5,
+        initial_value=0.01,
+        growth_factor=1.1,
         cutback_factor=0.5,
         target_nb_iterations=5,
-        max_stepsize=1e3,
     ),
 )
 
-#from dolfinx.log import set_log_level, LogLevel
+# from dolfinx.log import set_log_level, LogLevel
 
-#set_log_level(LogLevel.INFO)
+# set_log_level(LogLevel.INFO)
 
 my_model.initialise()
 my_model.run()
@@ -379,7 +374,7 @@ for profile, name in [(T_profile_ceramic, "ceramic"), (T_profile_coating, "coati
 # starting from t_min onwards so the plot focuses on the slower long-term buildup
 # rather than the fast initial transient.
 def plot_accumulation(
-    profile_inner, profile_outer, species_name, filename, n_snapshots=10, t_min=1000.0
+    profile_inner, profile_outer, species_name, filename, n_snapshots=10, t_min=1
 ):
     t = np.asarray(profile_inner.t)
     start = np.searchsorted(t, t_min)
@@ -421,11 +416,14 @@ fig, ax = make_fig(
 
 
 ax.plot(surface_flux.t, surface_flux.data, color=COLORS["red"])
+ax.set_ylim(bottom=1e2)  # avoid log(0) on the y-axis
 save_fig(fig, "T_surface_flux.png")
 
 N_A = 6.02214076e23  # 1/mol, Avogadro
 pebble_surface_area = 4 * np.pi * surface_location**2  # m^2, outer (coating) surface
-surface_molar_rate = [sf * pebble_surface_area / N_A for sf in surface_flux.data]  # mol/s per pebble
+surface_molar_rate = [
+    sf * pebble_surface_area / N_A for sf in surface_flux.data
+]  # mol/s per pebble
 
 fig, ax = make_fig(
     xlabel="Time (s)",

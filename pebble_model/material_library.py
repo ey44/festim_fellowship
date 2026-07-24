@@ -105,14 +105,14 @@ import numpy as np
 
 # ── Physical constants ────────────────────────────────────────────────────────
 
-R_GAS = 8.314462618e-3      # kJ/mol/K   gas constant, paper's Arrhenius form
-N_A = 6.02214076e23         # 1/mol      Avogadro
-K_B_EV = 8.617333262e-5     # eV/K       Boltzmann, FESTIM's Arrhenius form
+R_GAS = 8.314462618e-3  # kJ/mol/K   gas constant, paper's Arrhenius form
+N_A = 6.02214076e23  # 1/mol      Avogadro
+K_B_EV = 8.617333262e-5  # eV/K       Boltzmann, FESTIM's Arrhenius form
 
 # ── EXPLICIT UNIT CONVERSIONS (paper -> FESTIM) ───────────────────────────────
 # These two constants are the entire paper->FESTIM unit bridge.
 KJ_PER_MOL_TO_EV = 1.0 / 96.48533212  # [eV] per [kJ/mol] = 1000 / (N_A * e)
-MOL_H2_TO_ATOMS = 2.0 * N_A           # [atoms] per [mol of H2] = 1.20443e24
+MOL_H2_TO_ATOMS = 2.0 * N_A  # [atoms] per [mol of H2] = 1.20443e24
 
 # Isotope mass numbers for the 1/sqrt(m_Q) scaling (paper, Table 1 note a)
 ISOTOPE_MASS_NUMBER = {"H": 1.0, "D": 2.0, "T": 3.0}
@@ -136,6 +136,7 @@ def _mass_factor(isotope: str) -> float:
 
 
 # ── The material object ───────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class MaterialProperties:
@@ -225,8 +226,9 @@ class MaterialProperties:
             kw["name"] = self.name
         return kw
 
-    def festim_kwargs_multispecies(self, isotopes=("D", "T"),
-                                   include_name: bool = True) -> dict:
+    def festim_kwargs_multispecies(
+        self, isotopes=("D", "T"), include_name: bool = True
+    ) -> dict:
         """Dict-valued kwargs for a FESTIM multi-species problem."""
         kw = {
             "D_0": {q: self.D_0_for(q) for q in isotopes},
@@ -262,8 +264,9 @@ class MaterialProperties:
 
     # ---- editing / placeholders ---------------------------------------------
 
-    def with_solubility(self, KS0: float, ES: float, T_KS: tuple | None = None,
-                        placeholder: bool = True) -> "MaterialProperties":
+    def with_solubility(
+        self, KS0: float, ES: float, T_KS: tuple | None = None, placeholder: bool = True
+    ) -> "MaterialProperties":
         """
         Return a copy with solubility filled in, in PAPER units
         (KS0 [mol(Q2)/m^3/Pa^0.5], ES [kJ/mol]). Permeability is derived as
@@ -279,8 +282,12 @@ class MaterialProperties:
             marks -= {"KS0", "ES"}
         return replace(
             self,
-            KS0=KS0, ES=ES, T_KS=T_KS,
-            P0=self.D0 * KS0, EP=self.ED + ES, T_P=T_KS,
+            KS0=KS0,
+            ES=ES,
+            T_KS=T_KS,
+            P0=self.D0 * KS0,
+            EP=self.ED + ES,
+            T_P=T_KS,
             placeholder=tuple(sorted(marks)),
         )
 
@@ -309,7 +316,8 @@ class MaterialProperties:
                 f"{self.name}: T = {T} K is outside the validated range "
                 f"{lo}-{hi} K for {label}; Arrhenius extrapolation may be "
                 f"unreliable.",
-                PropertyRangeWarning, stacklevel=3,
+                PropertyRangeWarning,
+                stacklevel=3,
             )
 
     def diffusivity(self, T: float, isotope: str | None = None) -> float:
@@ -346,8 +354,13 @@ class MaterialProperties:
             P = self.permeability(T)
             P_dks = self.diffusivity(T) * self.sieverts_constant(T)
         rel = abs(P - P_dks) / max(P, P_dks)
-        return {"T": T, "P_stored": P, "P_from_DKS": P_dks,
-                "relative_discrepancy": rel, "consistent": rel < 0.01}
+        return {
+            "T": T,
+            "P_stored": P,
+            "P_from_DKS": P_dks,
+            "relative_discrepancy": rel,
+            "consistent": rel < 0.01,
+        }
 
     def check_festim_roundtrip(self, T: float) -> dict:
         """
@@ -358,8 +371,7 @@ class MaterialProperties:
             warnings.simplefilter("ignore", PropertyRangeWarning)
             D_paper = self.diffusivity(T)
             D_festim = self.D_0 * np.exp(-self.E_D / (K_B_EV * T))
-            out = {"D_rel_err": abs(D_festim - D_paper) / D_paper,
-                   "KS_rel_err": None}
+            out = {"D_rel_err": abs(D_festim - D_paper) / D_paper, "KS_rel_err": None}
             if self.has_solubility:
                 KS_paper = self.sieverts_constant(T)
                 KS_festim = self.K_S_0 * np.exp(-self.E_K_S / (K_B_EV * T))
@@ -402,14 +414,14 @@ class MaterialProperties:
                 f"    E_D   = {self.E_D:.4f}  eV",
             ]
             if self.has_solubility:
-                lines += [f"    K_S_0 = {self.K_S_0:.4e}  atoms/m^3/Pa^0.5",
-                          f"    E_K_S = {self.E_K_S:.4f}  eV"]
+                lines += [
+                    f"    K_S_0 = {self.K_S_0:.4e}  atoms/m^3/Pa^0.5",
+                    f"    E_K_S = {self.E_K_S:.4f}  eV",
+                ]
             else:
                 lines.append("    K_S_0 = (omitted; supply before coupling)")
             if self.placeholder:
-                lines.append(
-                    f"  !! PLACEHOLDER FIELDS: {', '.join(self.placeholder)}"
-                )
+                lines.append(f"  !! PLACEHOLDER FIELDS: {', '.join(self.placeholder)}")
             if self.source:
                 lines.append(f"  source: {self.source}")
             if self.note:
@@ -419,8 +431,10 @@ class MaterialProperties:
     def __repr__(self) -> str:
         tag = "" if self.has_solubility else ", D-only"
         ph = f", placeholder={list(self.placeholder)}" if self.placeholder else ""
-        return (f"MaterialProperties({self.name!r}, isotope={self.isotope!r}, "
-                f"D_0={self.D_0:.3e} m^2/s, E_D={self.E_D:.4f} eV{tag}{ph})")
+        return (
+            f"MaterialProperties({self.name!r}, isotope={self.isotope!r}, "
+            f"D_0={self.D_0:.3e} m^2/s, E_D={self.E_D:.4f} eV{tag}{ph})"
+        )
 
 
 # ── The materials ─────────────────────────────────────────────────────────────
@@ -428,95 +442,156 @@ class MaterialProperties:
 
 Pd25Ag = MaterialProperties(
     name="Pd25Ag",
-    D0=3.07e-7, ED=25.9, T_D=(323, 773),
-    KS0=1.82e-1, ES=-19.6, T_KS=(323, 773),
-    P0=5.58e-8, EP=6.3, T_P=(323, 773),
+    D0=3.07e-7,
+    ED=25.9,
+    T_D=(323, 773),
+    KS0=1.82e-1,
+    ES=-19.6,
+    T_KS=(323, 773),
+    P0=5.58e-8,
+    EP=6.3,
+    T_P=(323, 773),
     source="Shimada Table 2; Serra et al. (1998) Metall. Mater. Trans. A 29A, 1023",
-    note=("Pd/Ag membrane alloy. ES negative: solubility rises on cooling. "
-          "Self-consistent set (P0 = D0*KS0, EP = ED + ES)."),
+    note=(
+        "Pd/Ag membrane alloy. ES negative: solubility rises on cooling. "
+        "Self-consistent set (P0 = D0*KS0, EP = ED + ES)."
+    ),
 )
 
 Pd = MaterialProperties(
     name="Pd",
-    D0=2.90e-7, ED=22.2, T_D=(223, 873),
-    KS0=4.45e-1, ES=-8.4, T_KS=(473, 673),
-    P0=1.29e-7, EP=13.8, T_P=(473, 673),
-    source=("Shimada Table 1; D: Volkl & Alefeld (1975); "
-            "K_S: Favreau et al. (1954)"),
-    note=("Pure Pd. D valid over a far wider range (223-873 K) than K_S and P "
-          "(473-673 K) -- do not extrapolate solubility."),
+    D0=2.90e-7,
+    ED=22.2,
+    T_D=(223, 873),
+    KS0=4.45e-1,
+    ES=-8.4,
+    T_KS=(473, 673),
+    P0=1.29e-7,
+    EP=13.8,
+    T_P=(473, 673),
+    source=("Shimada Table 1; D: Volkl & Alefeld (1975); K_S: Favreau et al. (1954)"),
+    note=(
+        "Pure Pd. D valid over a far wider range (223-873 K) than K_S and P "
+        "(473-673 K) -- do not extrapolate solubility."
+    ),
 )
 
 Nb = MaterialProperties(
     name="Nb",
-    D0=5.00e-8, ED=10.2, T_D=(223, 873),
-    KS0=1.26e-1, ES=-35.3, T_KS=(625, 944),
-    P0=6.30e-9, EP=-25.1, T_P=(625, 773),
-    source=("Shimada Table 1; D: Volkl & Alefeld (1975); "
-            "K_S: Veleckis & Edwards (1969)"),
-    note=("Group V metal, very high bulk diffusivity but strongly surface "
-          "sensitive -- oxygen contamination makes permeation data unreliable "
-          "(Shimada Sec. 6.08.3.12). EP negative -> P rises on cooling."),
+    D0=5.00e-8,
+    ED=10.2,
+    T_D=(223, 873),
+    KS0=1.26e-1,
+    ES=-35.3,
+    T_KS=(625, 944),
+    P0=6.30e-9,
+    EP=-25.1,
+    T_P=(625, 773),
+    source=(
+        "Shimada Table 1; D: Volkl & Alefeld (1975); K_S: Veleckis & Edwards (1969)"
+    ),
+    note=(
+        "Group V metal, very high bulk diffusivity but strongly surface "
+        "sensitive -- oxygen contamination makes permeation data unreliable "
+        "(Shimada Sec. 6.08.3.12). EP negative -> P rises on cooling."
+    ),
 )
 
 V = MaterialProperties(
     name="V",
-    D0=2.90e-8, ED=4.2, T_D=(173, 573),
-    KS0=1.38e-1, ES=-29.0, T_KS=(519, 827),
-    P0=4.00e-9, EP=-24.9, T_P=(519, 573),
-    source=("Shimada Table 1; D: Volkl & Alefeld (1975); "
-            "K_S: Veleckis & Edwards (1969)"),
-    note=("Very high diffusivity, highly surface sensitive. D and K_S ranges "
-          "barely overlap; P validated only over 519-573 K. The ~2% P vs "
-          "D*K_S mismatch is table rounding (EP -24.9 vs ED+ES -24.8)."),
+    D0=2.90e-8,
+    ED=4.2,
+    T_D=(173, 573),
+    KS0=1.38e-1,
+    ES=-29.0,
+    T_KS=(519, 827),
+    P0=4.00e-9,
+    EP=-24.9,
+    T_P=(519, 573),
+    source=(
+        "Shimada Table 1; D: Volkl & Alefeld (1975); K_S: Veleckis & Edwards (1969)"
+    ),
+    note=(
+        "Very high diffusivity, highly surface sensitive. D and K_S ranges "
+        "barely overlap; P validated only over 519-573 K. The ~2% P vs "
+        "D*K_S mismatch is table rounding (EP -24.9 vs ED+ES -24.8)."
+    ),
 )
 
 Zr = MaterialProperties(
     name="Zr",
-    D0=8.00e-7, ED=45.3, T_D=(548, 973),
-    KS0=4.30e-1, ES=-49.5, T_KS=(602, 1069),
-    P0=3.44e-7, EP=-4.2, T_P=(602, 973),
+    D0=8.00e-7,
+    ED=0.4695,
+    T_D=(548, 973),
+    KS0=4.30e-1,
+    ES=-49.5,
+    T_KS=(602, 1069),
+    P0=3.44e-7,
+    EP=-4.2,
+    T_P=(602, 973),
     source="Shimada Table 1; D: Kearns (1967); K_S: Kearns (1972)",
-    note=("Pebble coating candidate. Strongly negative ES -- Zr is a hydride "
-          "former and dissolves a lot of hydrogen; this Sieverts fit is a "
-          "dilute-solution approximation that breaks down at high loading."),
+    note=(
+        "Pebble coating candidate. Strongly negative ES -- Zr is a hydride "
+        "former and dissolves a lot of hydrogen; this Sieverts fit is a "
+        "dilute-solution approximation that breaks down at high loading."
+        "45.3 kjmol-1"
+    ),
 )
 
 Li2O = MaterialProperties(
     name="Li2O",
-    D0=1.16e-5, ED=101.0, T_D=None,
-    source=("NOT from Shimada (2020) -- Ch. 6.08 covers metals, alloys, carbon "
-            "and Pb-17Li only, with no ceramic breeder data. User-supplied; "
-            "add the primary reference."),
-    note=("Breeder pebble core. Diffusivity only. FESTIM multi-material "
-          "problems need a solubility law on EVERY material for the interface "
-          "condition, so set K_S before coupling to the coating: "
-          "Li2O = Li2O.with_solubility(KS0=..., ES=...)"),
+    D0=1.16e-5,
+    ED=1.0468,
+    T_D=None,
+    source=(
+        "NOT from Shimada (2020) -- Ch. 6.08 covers metals, alloys, carbon "
+        "and Pb-17Li only, with no ceramic breeder data. User-supplied; "
+        "add the primary reference. 101.0 kJ/mol is the activation energy for Li diffusion in Li2O, "
+    ),
+    note=(
+        "Breeder pebble core. Diffusivity only. FESTIM multi-material "
+        "problems need a solubility law on EVERY material for the interface "
+        "condition, so set K_S before coupling to the coating: "
+        "Li2O = Li2O.with_solubility(KS0=..., ES=...)"
+    ),
 )
 
 RAFM = MaterialProperties(
     name="RAFM",
-    D0=1.00e-7, ED=13.2, T_D=(300, 973),
-    KS0=4.40e-1, ES=28.6, T_KS=(300, 973),
-    P0=4.40e-8, EP=41.8, T_P=(300, 973),
+    D0=1.00e-7,
+    ED=13.2,
+    T_D=(300, 973),
+    KS0=4.40e-1,
+    ES=28.6,
+    T_KS=(300, 973),
+    P0=4.40e-8,
+    EP=41.8,
+    T_P=(300, 973),
     source="Shimada Table 2; Causey, Karnesky & San Marchi (2012) CNM Ch. 4.16",
-    note=("F82H / Eurofer. Below ~573 K trapping makes the EFFECTIVE D lower "
-          "and effective K_S higher than these lattice values -- use above "
-          "573 K, or model traps explicitly."),
+    note=(
+        "F82H / Eurofer. Below ~573 K trapping makes the EFFECTIVE D lower "
+        "and effective K_S higher than these lattice values -- use above "
+        "573 K, or model traps explicitly."
+    ),
 )
 
 SS316L = MaterialProperties(
     name="SS316L",
-    D0=8.70e-7, ED=51.9, T_D=(500, 1200),
-    KS0=3.60e-1, ES=11.7, T_KS=(500, 1200),
-    P0=3.13e-7, EP=63.6, T_P=(500, 1200),
+    D0=8.70e-7,
+    ED=51.9,
+    T_D=(500, 1200),
+    KS0=3.60e-1,
+    ES=11.7,
+    T_KS=(500, 1200),
+    P0=3.13e-7,
+    EP=63.6,
+    T_P=(500, 1200),
     source="Shimada Table 2; Reiter, Forcey & Gervasini (1993) EUR 15217 EN",
     note="Loop tubing. High EP -> good tritium barrier at ambient T.",
 )
 
 
-MATERIALS = {m.name: m for m in
-             (Pd25Ag, Pd, Nb, V, Zr, Li2O, RAFM, SS316L)}
+MATERIALS = {m.name: m for m in (Pd25Ag, Pd, Nb, V, Zr, Li2O, RAFM, SS316L)}
 
 
 def get_material(name: str) -> MaterialProperties:
@@ -529,6 +604,7 @@ def get_material(name: str) -> MaterialProperties:
 
 
 # ── Import-time flag for incomplete / placeholder entries ─────────────────────
+
 
 def incomplete_materials() -> dict:
     """{name: [problem, ...]} for every entry that is not fully sourced."""
@@ -552,9 +628,10 @@ def _warn_incomplete() -> None:
         "material_library: "
         + "; ".join(f"{n} ({', '.join(p)})" for n, p in gaps.items())
         + ". Materials without K_S expose D_0/E_D only -- K_S_0/E_K_S raise, "
-          "and festim_kwargs() omits them. FESTIM multi-material problems "
-          "require a solubility law on every material.",
-        IncompleteMaterialWarning, stacklevel=2,
+        "and festim_kwargs() omits them. FESTIM multi-material problems "
+        "require a solubility law on every material.",
+        IncompleteMaterialWarning,
+        stacklevel=2,
     )
 
 
@@ -563,9 +640,12 @@ _warn_incomplete()
 
 # ── Self-test ─────────────────────────────────────────────────────────────────
 
+
 def selftest_conversions(T: float = 573.0) -> None:
-    print(f"\n{'=' * 70}\nUnit-conversion round trip at {T:.0f} K "
-          f"(errors should be ~0)\n{'=' * 70}")
+    print(
+        f"\n{'=' * 70}\nUnit-conversion round trip at {T:.0f} K "
+        f"(errors should be ~0)\n{'=' * 70}"
+    )
     for name, m in MATERIALS.items():
         r = m.check_festim_roundtrip(T)
         ks = "n/a" if r["KS_rel_err"] is None else f"{r['KS_rel_err']:.2e}"
@@ -580,14 +660,19 @@ if __name__ == "__main__":
 
     for m in MATERIALS.values():
         ranges = [r for r in (m.T_D, m.T_KS, m.T_P) if r]
-        T_eval = (0.5 * (max(r[0] for r in ranges) + min(r[1] for r in ranges))
-                  if ranges else 573.0)
+        T_eval = (
+            0.5 * (max(r[0] for r in ranges) + min(r[1] for r in ranges))
+            if ranges
+            else 573.0
+        )
         print("\n" + m.summary(T_eval))
 
     selftest_conversions()
 
-    print(f"\n{'=' * 70}\nIsotope scaling, Pd-25Ag at 623 K "
-          f"(expect 1 : 0.707 : 0.577)\n{'=' * 70}")
+    print(
+        f"\n{'=' * 70}\nIsotope scaling, Pd-25Ag at 623 K "
+        f"(expect 1 : 0.707 : 0.577)\n{'=' * 70}"
+    )
     d_h = Pd25Ag.diffusivity(623.0, "H")
     for q in ("H", "D", "T"):
         d = Pd25Ag.diffusivity(623.0, q)
@@ -597,5 +682,4 @@ if __name__ == "__main__":
     print(f"  before: {Li2O!r}")
     demo = Li2O.with_solubility(KS0=1.0e-1, ES=0.0)
     print(f"  after : {demo!r}")
-    print(f"  K_S_0 = {demo.K_S_0:.4e} atoms/m^3/Pa^0.5   "
-          f"E_K_S = {demo.E_K_S:.4f} eV")
+    print(f"  K_S_0 = {demo.K_S_0:.4e} atoms/m^3/Pa^0.5   E_K_S = {demo.E_K_S:.4f} eV")
