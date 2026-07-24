@@ -30,12 +30,12 @@ local_refinement_thickness = 5e-7
 surface_location = pebble_radius + coating_thickness
 model_temperature = 573.0  # blanket inlet temperature
 p_total = 2e5  # purge gas pressure [Pa]
-x_D2_ppm = 100
+x_D2_ppm = 1e-13
 x_D2 = x_D2_ppm * 1e-6  # convert to fraction
 p_D2 = x_D2 * p_total
-p_DT = 0.0
-p_T2 = 0.0
-surface_recombination = True
+p_DT = 1e-16
+p_T2 = 1e-16
+surface_recombination = 'no_zero'
 
 # Select materials
 
@@ -145,10 +145,10 @@ my_model.interfaces = [core_coating_interface]
 # TODO: replace with real recombination data for T/D on Zr.
 # Atomic concentration convention: c in atoms/m3, flux in atoms/m2/s
 
-if surface_recombination:
-    k_r0_common = 1e-22  #
+if surface_recombination == 'yes':
+    k_r0_common = 1e-18  #
     E_kr_common = 0.0  # eV
-    k_d0_common = 1e-22  # pre-exponential dissociation coefficient (m^-2/s/Pa)
+    k_d0_common = 1e-18  # pre-exponential dissociation coefficient (m^-2/s/Pa)
     E_kd_common = E_kr_common  # dissociation activation energy (eV)
 
     k_r0_D2 = k_r0_DT = k_r0_T2 = k_r0_common
@@ -188,7 +188,7 @@ if surface_recombination:
 
     my_model.boundary_conditions = [D2_bc, DT_bc, T2_bc]
 
-else:
+elif surface_recombination == 'no_sieverts':
     D_sieverts_bc = F.SievertsBC(
         subdomain=surface,
         S_0=Zr_festim.K_S_0,
@@ -210,6 +210,21 @@ else:
         T_sieverts_bc,
     ]
 
+elif surface_recombination== 'no_zero':
+    T_dirichlet = F.FixedConcentrationBC(
+    subdomain=surface,
+    value=0.0,
+    species=T
+    )
+    D_dirichlet = F.FixedConcentrationBC(
+    subdomain=surface,
+    value=0.0,
+    species=D
+    )
+    my_model.boundary_conditions = [
+    T_dirichlet,
+    D_dirichlet
+    ]
 # Define temperature
 
 my_model.temperature = model_temperature  # inlet blanket conditions
@@ -272,9 +287,9 @@ my_model.settings = F.Settings(
     rtol=1e-8,
     max_iterations=30,
     transient=True,
-    final_time=1e5,
+    final_time=1e7,
     stepsize=F.Stepsize(
-        initial_value=1e-1,
+        initial_value=1e0,
         growth_factor=1.5,
         cutback_factor=0.5,
         target_nb_iterations=5,
@@ -282,9 +297,9 @@ my_model.settings = F.Settings(
     ),
 )
 
-from dolfinx.log import set_log_level, LogLevel
+#from dolfinx.log import set_log_level, LogLevel
 
-set_log_level(LogLevel.INFO)
+#set_log_level(LogLevel.INFO)
 
 my_model.initialise()
 my_model.run()
@@ -401,5 +416,21 @@ fig, ax = make_fig(
     log_x=True,
     log_y=True,
 )
+
+
 ax.plot(surface_flux.t, surface_flux.data, color=COLORS["red"])
 save_fig(fig, "T_surface_flux.png")
+
+N_A = 6.02214076e23  # 1/mol, Avogadro
+pebble_surface_area = 4 * np.pi * surface_location**2  # m^2, outer (coating) surface
+surface_molar_rate = [sf * pebble_surface_area / N_A for sf in surface_flux.data]  # mol/s per pebble
+
+fig, ax = make_fig(
+    xlabel="Time (s)",
+    ylabel="T molar rate (mol/s)",
+    title="Tritium release rate per pebble",
+    log_x=True,
+    log_y=True,
+)
+ax.plot(surface_flux.t, surface_molar_rate, color=COLORS["red"])
+save_fig(fig, "T_surface_molar_rate.png")
