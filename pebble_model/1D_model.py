@@ -23,6 +23,8 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 
 my_model = F.HydrogenTransportProblemDiscontinuous()
 
+print('hi')
+
 # Define model inputs
 coating_thickness = 1e-4
 pebble_radius = 5e-4
